@@ -1,0 +1,33 @@
+name: Dockerized CI/CD to EC2
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH
+        env:
+          PRIVATE_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
+        run: |
+          echo "$PRIVATE_KEY" > key.pem
+          chmod 600 key.pem
+
+      - name: Deploy via SSH and Docker
+        env:
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i key.pem $USER@$HOST << 'EOF'
+            docker ps -q --filter "name=node-app" | grep -q . && docker stop node-app && docker rm node-app
+            rm -rf app && mkdir app && cd app
+            git clone https://github.com/Sona-Yadav/CI-CD-Project-AWSEC2-Docker-GitHubActions.git .  
+            docker build -t node-app .
+            docker run -d -p 3000:3000 --name node-app node-app
+          EOF
